@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <thread>
 #include <ament_index_cpp/get_package_share_directory.hpp>
+#include <sstream>
 
 class GenericPublisherServer : public rclcpp::Node
 {
@@ -41,6 +42,8 @@ public:
         }
 
         server_.init_asio();
+        server_.set_open_handler(std::bind(&GenericPublisherServer::on_open, this, std::placeholders::_1));
+        server_.set_close_handler(std::bind(&GenericPublisherServer::on_close, this, std::placeholders::_1));
         server_.set_message_handler(std::bind(&GenericPublisherServer::on_message, this, std::placeholders::_1, std::placeholders::_2));
         server_.listen(9090);
         server_.start_accept();
@@ -69,9 +72,20 @@ private:
         return pub;
     }
 
+    void on_open(websocketpp::connection_hdl hdl)
+    {
+        RCLCPP_INFO(this->get_logger(), "WebSocket connection opened.");
+    }
+
+    void on_close(websocketpp::connection_hdl hdl)
+    {
+        RCLCPP_INFO(this->get_logger(), "WebSocket connection closed.");
+    }
+
     void on_message(websocketpp::connection_hdl hdl, websocketpp::server<websocketpp::config::asio>::message_ptr msg)
     {
         std::string received_payload = msg->get_payload();
+        RCLCPP_INFO(this->get_logger(), "Received message: %s", received_payload.c_str());
         size_t separator_pos = received_payload.find(':');
 
         if (separator_pos != std::string::npos)
@@ -85,8 +99,11 @@ private:
                 if (it != publishers_.end())
                 {
                     auto message = rclcpp::SerializedMessage();
-                    std::vector<uint8_t> payload(data.begin(), data.end());
-
+                    
+                    // 16進数文字列をバイナリデータに変換
+                    std::vector<uint8_t> payload = hex_string_to_binary(data);
+                    
+                    // SerializedMessageにバイナリデータを設定
                     message.reserve(payload.size());
                     std::memcpy(message.get_rcl_serialized_message().buffer, payload.data(), payload.size());
                     message.get_rcl_serialized_message().buffer_length = payload.size();
@@ -95,6 +112,18 @@ private:
                 }
             }
         }
+    }
+
+    std::vector<uint8_t> hex_string_to_binary(const std::string &hex)
+    {
+        std::vector<uint8_t> binary;
+        for (size_t i = 0; i < hex.length(); i += 2)
+        {
+            std::string byteString = hex.substr(i, 2);
+            char byte = (char)(strtol(byteString.c_str(), nullptr, 16));
+            binary.push_back(byte);
+        }
+        return binary;
     }
 
     std::string yaml_file_;

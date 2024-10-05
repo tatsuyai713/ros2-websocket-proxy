@@ -1,6 +1,6 @@
 # config/topics.yaml
 topics:
   - name: "/test"
-    type: "std_msgs/Float64"
+    type: "std_msgs/msg/Float64"
   - name: "/another_topic"
-    type: "sensor_msgs/Image"
+    type: "sensor_msgs/msg/Image"
