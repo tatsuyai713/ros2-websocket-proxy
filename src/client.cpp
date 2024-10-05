@@ -12,6 +12,11 @@
 #include <iomanip>
 #include <ament_index_cpp/get_package_share_directory.hpp>
 
+static const std::string base64_chars =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    "abcdefghijklmnopqrstuvwxyz"
+    "0123456789+/";
+
 class GenericSubscriberClient : public rclcpp::Node
 {
 public:
@@ -111,9 +116,9 @@ private:
                                                                                       reinterpret_cast<const uint8_t *>(serialized_msg.buffer) + serialized_msg.buffer_length);
                                                          if (is_connected_)
                                                          {
-                                                             std::string hex_string = to_hex_string(payload);
+                                                             std::string base64_string = to_base64(payload);
 
-                                                             std::string message_with_topic = topic_name + ":" + hex_string;
+                                                             std::string message_with_topic = topic_name + ":" + base64_string;
 
                                                              RCLCPP_INFO(this->get_logger(), "Received message: %s", message_with_topic.c_str());
 
@@ -125,22 +130,41 @@ private:
                                                              }
                                                              else
                                                              {
-                                                                 RCLCPP_INFO(this->get_logger(), "Hex string sent successfully: %s", hex_string.c_str());
+                                                                 RCLCPP_INFO(this->get_logger(), "Hex string sent successfully: %s", base64_string.c_str());
                                                              }
                                                          }
                                                      });
         subscriptions_[topic_name] = sub;
     }
 
-    // バイナリデータを16進数文字列に変換する関数
-    std::string to_hex_string(const std::vector<uint8_t> &data)
+    std::string to_base64(const std::vector<uint8_t> &data)
     {
-        std::ostringstream oss;
-        for (uint8_t byte : data)
+        std::string result;
+        int val = 0;
+        int valb = -6;
+
+        for (uint8_t c : data)
         {
-            oss << std::setw(2) << std::setfill('0') << std::hex << static_cast<int>(byte);
+            val = (val << 8) + c;
+            valb += 8;
+            while (valb >= 0)
+            {
+                result.push_back(base64_chars[(val >> valb) & 0x3F]);
+                valb -= 6;
+            }
         }
-        return oss.str();
+
+        if (valb > -6)
+        {
+            result.push_back(base64_chars[((val << 8) >> valb) & 0x3F]);
+        }
+
+        while (result.size() % 4)
+        {
+            result.push_back('=');
+        }
+
+        return result;
     }
 
     void on_open(websocketpp::connection_hdl hdl)

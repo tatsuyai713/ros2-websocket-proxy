@@ -10,6 +10,10 @@
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <sstream>
 
+static const std::string base64_chars =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    "abcdefghijklmnopqrstuvwxyz"
+    "0123456789+/";
 class GenericPublisherServer : public rclcpp::Node
 {
 public:
@@ -99,11 +103,9 @@ private:
                 if (it != publishers_.end())
                 {
                     auto message = rclcpp::SerializedMessage();
-                    
-                    // 16進数文字列をバイナリデータに変換
-                    std::vector<uint8_t> payload = hex_string_to_binary(data);
-                    
-                    // SerializedMessageにバイナリデータを設定
+
+                    std::vector<uint8_t> payload = base64_to_binary(data);
+
                     message.reserve(payload.size());
                     std::memcpy(message.get_rcl_serialized_message().buffer, payload.data(), payload.size());
                     message.get_rcl_serialized_message().buffer_length = payload.size();
@@ -114,15 +116,35 @@ private:
         }
     }
 
-    std::vector<uint8_t> hex_string_to_binary(const std::string &hex)
+    std::vector<uint8_t> base64_to_binary(const std::string &base64)
     {
         std::vector<uint8_t> binary;
-        for (size_t i = 0; i < hex.length(); i += 2)
+        int val = 0;
+        int valb = -8;
+
+        for (unsigned char c : base64)
         {
-            std::string byteString = hex.substr(i, 2);
-            char byte = (char)(strtol(byteString.c_str(), nullptr, 16));
-            binary.push_back(byte);
+            if (isspace(c) || c == '=')
+            {
+                continue; // 空白やパディングは無視
+            }
+
+            auto pos = base64_chars.find(c);
+            if (pos == std::string::npos)
+            {
+                throw std::invalid_argument("Invalid Base64 string");
+            }
+
+            val = (val << 6) + pos;
+            valb += 6;
+
+            if (valb >= 0)
+            {
+                binary.push_back((val >> valb) & 0xFF);
+                valb -= 8;
+            }
         }
+
         return binary;
     }
 
