@@ -14,9 +14,10 @@ class GenericSubscriberClient : public rclcpp::Node
 {
 public:
     GenericSubscriberClient()
-        : Node("generic_subscriber_client")
+        : Node("generic_subscriber_client"),
+          reconnect_interval_(1),
+          is_connected_(false)
     {
-
         this->declare_parameter("yaml_file", "topics.yaml");
         this->get_parameter("yaml_file", yaml_file_);
         this->declare_parameter("ws_url", "ws://localhost:9090");
@@ -35,6 +36,7 @@ public:
             rclcpp::shutdown();
             return;
         }
+
         auto topics = config["topics"];
         for (const auto &topic : topics)
         {
@@ -46,18 +48,11 @@ public:
         ws_client_.init_asio();
         ws_client_.set_open_handler(std::bind(&GenericSubscriberClient::on_open, this, std::placeholders::_1));
         ws_client_.set_message_handler(std::bind(&GenericSubscriberClient::on_message, this, std::placeholders::_1, std::placeholders::_2));
+        ws_client_.set_close_handler(std::bind(&GenericSubscriberClient::on_close, this, std::placeholders::_1));
+        ws_client_.set_fail_handler(std::bind(&GenericSubscriberClient::on_fail, this, std::placeholders::_1));
 
-        websocketpp::lib::error_code ec;
-        client_connection_ = ws_client_.get_connection(ws_url_, ec);
-        if (ec)
-        {
-            RCLCPP_ERROR(this->get_logger(), "Could not create connection: %s", ec.message().c_str());
-            return;
-        }
-
-        ws_client_.connect(client_connection_);
         client_thread_ = std::thread([this]()
-                                     { ws_client_.run(); });
+                                     { run(); });
     }
 
     ~GenericSubscriberClient()
@@ -69,6 +64,41 @@ public:
     }
 
 private:
+    void run()
+    {
+        while (rclcpp::ok())
+        {
+            if (!is_connected_)
+            {
+                connect();
+                RCLCPP_INFO(this->get_logger(), "Reconnecting...");
+            }
+            std::this_thread::sleep_for(std::chrono::seconds(reconnect_interval_));
+        }
+    }
+
+    void connect()
+    {
+        websocketpp::lib::error_code ec;
+        client_connection_ = ws_client_.get_connection(ws_url_, ec);
+        if (ec)
+        {
+            RCLCPP_ERROR(this->get_logger(), "Could not create connection: %s", ec.message().c_str());
+            is_connected_ = false;
+            return;
+        }
+
+        try
+        {
+            ws_client_.connect(client_connection_);
+            ws_client_.run();
+        }
+        catch (const std::exception &e)
+        {
+            RCLCPP_ERROR(this->get_logger(), "Exception while connecting: %s", e.what());
+        }
+    }
+
     void create_subscriber(const std::string &topic_name, const std::string &type_name)
     {
         auto sub = this->create_generic_subscription(topic_name, type_name, rclcpp::QoS(10),
@@ -79,11 +109,14 @@ private:
 
                                                          std::string message_with_topic = topic_name + ":" + data;
 
-                                                         websocketpp::lib::error_code ec;
-                                                         client_connection_->send(message_with_topic, websocketpp::frame::opcode::text);
-                                                         if (ec)
+                                                         if (is_connected_)
                                                          {
-                                                             RCLCPP_ERROR(this->get_logger(), "Send failed: %s", ec.message().c_str());
+                                                             websocketpp::lib::error_code ec;
+                                                             client_connection_->send(message_with_topic, websocketpp::frame::opcode::text);
+                                                             if (ec)
+                                                             {
+                                                                 RCLCPP_ERROR(this->get_logger(), "Send failed: %s", ec.message().c_str());
+                                                             }
                                                          }
                                                      });
         subscriptions_[topic_name] = sub;
@@ -92,11 +125,36 @@ private:
     void on_open(websocketpp::connection_hdl hdl)
     {
         RCLCPP_INFO(this->get_logger(), "WebSocket connection opened.");
+        is_connected_ = true;
     }
 
     void on_message(websocketpp::connection_hdl hdl, websocketpp::client<websocketpp::config::asio_client>::message_ptr msg)
     {
         // RCLCPP_INFO(this->get_logger(), "Received message: %s", msg->get_payload().c_str());
+    }
+
+    void on_close(websocketpp::connection_hdl hdl)
+    {
+        RCLCPP_WARN(this->get_logger(), "WebSocket connection closed.");
+        is_connected_ = false;
+        ws_client_.reset();
+        ws_client_.init_asio();
+        ws_client_.set_open_handler(std::bind(&GenericSubscriberClient::on_open, this, std::placeholders::_1));
+        ws_client_.set_message_handler(std::bind(&GenericSubscriberClient::on_message, this, std::placeholders::_1, std::placeholders::_2));
+        ws_client_.set_close_handler(std::bind(&GenericSubscriberClient::on_close, this, std::placeholders::_1));
+        ws_client_.set_fail_handler(std::bind(&GenericSubscriberClient::on_fail, this, std::placeholders::_1));
+    }
+
+    void on_fail(websocketpp::connection_hdl hdl)
+    {
+        RCLCPP_ERROR(this->get_logger(), "WebSocket connection failed.");
+        is_connected_ = false;
+        ws_client_.reset();
+        ws_client_.init_asio();
+        ws_client_.set_open_handler(std::bind(&GenericSubscriberClient::on_open, this, std::placeholders::_1));
+        ws_client_.set_message_handler(std::bind(&GenericSubscriberClient::on_message, this, std::placeholders::_1, std::placeholders::_2));
+        ws_client_.set_close_handler(std::bind(&GenericSubscriberClient::on_close, this, std::placeholders::_1));
+        ws_client_.set_fail_handler(std::bind(&GenericSubscriberClient::on_fail, this, std::placeholders::_1));
     }
 
     std::string ws_url_;
@@ -105,6 +163,8 @@ private:
     websocketpp::client<websocketpp::config::asio_client>::connection_ptr client_connection_;
     std::unordered_map<std::string, rclcpp::SubscriptionBase::SharedPtr> subscriptions_;
     std::thread client_thread_;
+    int reconnect_interval_;
+    bool is_connected_;
 };
 
 int main(int argc, char *argv[])
