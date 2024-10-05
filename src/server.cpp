@@ -24,7 +24,6 @@ public:
         std::string package_path = ament_index_cpp::get_package_share_directory("ros2_websocket_proxy");
         yaml_file_ = package_path + "/config/" + yaml_file_;
 
-        // YAMLファイルを読み込む
         YAML::Node config;
         try
         {
@@ -126,7 +125,7 @@ private:
         {
             if (isspace(c) || c == '=')
             {
-                continue; // 空白やパディングは無視
+                continue;
             }
 
             auto pos = base64_chars.find(c);
