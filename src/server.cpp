@@ -17,10 +17,12 @@ static const std::string base64_chars =
 class GenericPublisherServer : public rclcpp::Node
 {
 public:
-    GenericPublisherServer() : Node("generic_publisher_server")
+    GenericPublisherServer() : Node("generic_publisher_server"), port_(9090)
     {
         this->declare_parameter("yaml_file", "topics.yaml");
         this->get_parameter("yaml_file", yaml_file_);
+        this->declare_parameter("port", 9090);
+        this->get_parameter("port", port_);
         std::string package_path = ament_index_cpp::get_package_share_directory("ros2_websocket_proxy");
         yaml_file_ = package_path + "/config/" + yaml_file_;
 
@@ -48,7 +50,7 @@ public:
         server_.set_open_handler(std::bind(&GenericPublisherServer::on_open, this, std::placeholders::_1));
         server_.set_close_handler(std::bind(&GenericPublisherServer::on_close, this, std::placeholders::_1));
         server_.set_message_handler(std::bind(&GenericPublisherServer::on_message, this, std::placeholders::_1, std::placeholders::_2));
-        server_.listen(9090);
+        server_.listen(port_);
         server_.start_accept();
         server_thread_ = std::thread([this]()
                                      { server_.run(); });
@@ -148,6 +150,7 @@ private:
     }
 
     std::string yaml_file_;
+    int port_;
     websocketpp::server<websocketpp::config::asio> server_;
     std::unordered_set<std::string> topic_names_;
     std::unordered_map<std::string, std::shared_ptr<rclcpp::GenericPublisher>> publishers_;
