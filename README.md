@@ -66,7 +66,7 @@ from launch_ros.actions import Node
 def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('yaml_file', default_value='topics.yaml', description='Path to the YAML file'),
-
+        DeclareLaunchArgument('port', default_value='9090', description='WebSocket server port'),
         Node(
             package='ros2_websocket_proxy',
             executable='generic_publisher_server',
@@ -74,6 +74,7 @@ def generate_launch_description():
             output='screen',
             parameters=[{
                 'yaml_file': LaunchConfiguration('yaml_file'),
+                'port': LaunchConfiguration('port'),
             }],
         ),
     ])
