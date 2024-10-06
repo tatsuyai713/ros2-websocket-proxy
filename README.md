@@ -17,7 +17,7 @@ To install the `ros2_websocket_proxy` package, clone the repository and build it
 
 ```bash
 cd ~/ros2_ws/src
-git clone <repository-url>
+git clone https://github.com/tatsuyai713/ros2-websocket-proxy
 cd ~/ros2_ws
 colcon build
 ```
@@ -40,13 +40,17 @@ topics:
 
 To run the generic subscriber client, use the following command:
 
+```bash
 ros2 run ros2_websocket_proxy generic_subscriber_client --ros-args -p yaml_file:=<path_to_yaml_file> -p ws_url:=<websocket_url>
+```
 
 ### Starting the Generic Publisher Server
 
 To run the generic publisher server, use the following command:
 
+```bash
 ros2 run ros2_websocket_proxy generic_publisher_server --ros-args -p yaml_file:=<path_to_yaml_file>
+```
 
 ### Launch File
 
