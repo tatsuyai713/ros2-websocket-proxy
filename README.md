@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `ros2_websocket_proxy` package provides a bridge between ROS 2 topics and WebSocket connections. It allows ROS 2 nodes to publish and subscribe to topics over WebSocket, enabling communication with web clients or other external systems. This package includes two main components: a generic subscriber client and a generic publisher server.
+The `ros2_websocket_proxy` package provides a bridge between ROS 2 topics and WebSocket connections. It allows ROS 2 nodes to publish and subscribe to topics over WebSocket, enabling communication with web clients or other ROS 2 networks. This package includes two main components: a generic subscriber client and a generic publisher server.
 
 ## Features
 
