@@ -60,6 +60,7 @@ public:
     {
         if (server_thread_.joinable())
         {
+            server_.stop();
             server_thread_.join();
         }
     }
