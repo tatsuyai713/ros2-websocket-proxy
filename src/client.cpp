@@ -66,6 +66,7 @@ public:
     {
         if (client_thread_.joinable())
         {
+            ws_client_.stop();
             client_thread_.join();
         }
     }
