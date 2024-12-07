@@ -10,10 +10,6 @@
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <sstream>
 
-static const std::string base64_chars =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    "abcdefghijklmnopqrstuvwxyz"
-    "0123456789+/";
 class GenericPublisherServer : public rclcpp::Node
 {
 public:
@@ -90,64 +86,40 @@ private:
 
     void on_message(websocketpp::connection_hdl hdl, websocketpp::server<websocketpp::config::asio>::message_ptr msg)
     {
-        std::string received_payload = msg->get_payload();
-        RCLCPP_INFO(this->get_logger(), "Received message: %s", received_payload.c_str());
-        size_t separator_pos = received_payload.find(':');
+        std::vector<uint8_t> received_payload(msg->get_payload().begin(), msg->get_payload().end());
 
-        if (separator_pos != std::string::npos)
+        if (received_payload.size() < 128)
         {
-            std::string topic_name = received_payload.substr(0, separator_pos);
-            std::string data = received_payload.substr(separator_pos + 1);
+            RCLCPP_ERROR(this->get_logger(), "Received payload is too small to contain topic information.");
+            return;
+        }
 
-            if (topic_names_.find(topic_name) != topic_names_.end())
+        std::string topic_name(received_payload.begin(), received_payload.begin() + 128);
+        topic_name.erase(std::find(topic_name.begin(), topic_name.end(), '\0'), topic_name.end());
+
+        if (topic_names_.find(topic_name) != topic_names_.end())
+        {
+            RCLCPP_INFO(this->get_logger(), "DATA OK");
+            auto it = publishers_.find(topic_name);
+            if (it != publishers_.end())
             {
-                auto it = publishers_.find(topic_name);
-                if (it != publishers_.end())
+                auto message = rclcpp::SerializedMessage();
+
+                std::vector<uint8_t> payload(received_payload.begin() + 128, received_payload.end());
+                RCLCPP_INFO(this->get_logger(), "Received message: ");
+                for (int i = 0; i < payload.size(); i++)
                 {
-                    auto message = rclcpp::SerializedMessage();
-
-                    std::vector<uint8_t> payload = base64_to_binary(data);
-
-                    message.reserve(payload.size());
-                    std::memcpy(message.get_rcl_serialized_message().buffer, payload.data(), payload.size());
-                    message.get_rcl_serialized_message().buffer_length = payload.size();
-
-                    it->second->publish(message);
+                    printf("%0X, ", payload[i]);
                 }
+                printf("\n");
+                message.reserve(payload.size());
+                std::memcpy(message.get_rcl_serialized_message().buffer, payload.data(), payload.size());
+                message.get_rcl_serialized_message().buffer_length = payload.size();
+
+                it->second->publish(message);
+                RCLCPP_INFO(this->get_logger(), "PUBLISH");
             }
         }
-    }
-
-    std::vector<uint8_t> base64_to_binary(const std::string &base64)
-    {
-        std::vector<uint8_t> binary;
-        int val = 0;
-        int valb = -8;
-
-        for (unsigned char c : base64)
-        {
-            if (isspace(c) || c == '=')
-            {
-                continue;
-            }
-
-            auto pos = base64_chars.find(c);
-            if (pos == std::string::npos)
-            {
-                throw std::invalid_argument("Invalid Base64 string");
-            }
-
-            val = (val << 6) + pos;
-            valb += 6;
-
-            if (valb >= 0)
-            {
-                binary.push_back((val >> valb) & 0xFF);
-                valb -= 8;
-            }
-        }
-
-        return binary;
     }
 
     std::string yaml_file_;
