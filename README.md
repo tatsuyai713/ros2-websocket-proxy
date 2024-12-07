@@ -27,11 +27,13 @@ colcon build
 The package uses a YAML file to specify the topics for subscription and publication. The YAML file should be placed in the `config` folder of the package. The file format should look like this:
 
 ```yaml
-topics:
-  - name: /topic_name
-    type: std_msgs/msg/String
-  - name: /another_topic
-    type: std_msgs/msg/Float64
+publish_topics:
+  - name: "/test"
+    type: "std_msgs/msg/Float64"
+subscribe_topics:
+  - name: "/another_topic"
+    type: "sensor_msgs/msg/Image"
+
 ```
 
 ## Usage
@@ -41,7 +43,7 @@ topics:
 To run the generic subscriber client, use the following command:
 
 ```bash
-ros2 run ros2_websocket_proxy generic_subscriber_client --ros-args -p yaml_file:=<path_to_yaml_file> -p ws_url:=<websocket_url>
+ros2 run ros2_websocket_proxy generic_client --ros-args -p yaml_file:=<path_to_yaml_file> -p ws_url:=<websocket_url>
 ```
 
 ### Starting the Generic Publisher Server
@@ -49,7 +51,7 @@ ros2 run ros2_websocket_proxy generic_subscriber_client --ros-args -p yaml_file:
 To run the generic publisher server, use the following command:
 
 ```bash
-ros2 run ros2_websocket_proxy generic_publisher_server --ros-args -p yaml_file:=<path_to_yaml_file>
+ros2 run ros2_websocket_proxy generic_server --ros-args -p yaml_file:=<path_to_yaml_file>
 ```
 
 ### Launch File
@@ -65,16 +67,17 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     return LaunchDescription([
-        DeclareLaunchArgument('yaml_file', default_value='topics.yaml', description='Path to the YAML file'),
-        DeclareLaunchArgument('port', default_value='9090', description='WebSocket server port'),
+        DeclareLaunchArgument('yaml_file', default_value='client_topics.yaml', description='Path to the YAML file'),
+        DeclareLaunchArgument('ws_url', default_value='ws://localhost:9090', description='WebSocket server URL'),
+
         Node(
             package='ros2_websocket_proxy',
-            executable='generic_publisher_server',
-            name='generic_publisher_server',
+            executable='generic_client',
+            name='generic_client',
             output='screen',
             parameters=[{
                 'yaml_file': LaunchConfiguration('yaml_file'),
-                'port': LaunchConfiguration('port'),
+                'ws_url': LaunchConfiguration('ws_url'),
             }],
         ),
     ])
@@ -89,19 +92,17 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     return LaunchDescription([
-        DeclareLaunchArgument('yaml_file', default_value='topics.yaml', description='Path to the YAML file'),
-        DeclareLaunchArgument('ws_url', default_value='ws://localhost:9090', description='WebSocket server URL'),
-
+        DeclareLaunchArgument('yaml_file', default_value='server_topics.yaml', description='Path to the YAML file'),
+        DeclareLaunchArgument('port', default_value='9090', description='WebSocket server port'),
         Node(
             package='ros2_websocket_proxy',
-            executable='generic_subscriber_client',
-            name='generic_subscriber_client',
+            executable='generic_server',
+            name='generic_server',
             output='screen',
             parameters=[{
                 'yaml_file': LaunchConfiguration('yaml_file'),
-                'ws_url': LaunchConfiguration('ws_url'),
+                'port': LaunchConfiguration('port'),
             }],
         ),
     ])
-
 ```
