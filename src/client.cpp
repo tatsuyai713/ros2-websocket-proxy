@@ -12,11 +12,6 @@
 #include <iomanip>
 #include <ament_index_cpp/get_package_share_directory.hpp>
 
-static const std::string base64_chars =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    "abcdefghijklmnopqrstuvwxyz"
-    "0123456789+/";
-
 class GenericSubscriberClient : public rclcpp::Node
 {
 public:
@@ -66,7 +61,6 @@ public:
     {
         if (client_thread_.joinable())
         {
-            ws_client_.stop();
             client_thread_.join();
         }
     }
@@ -117,13 +111,11 @@ private:
                                                                                       reinterpret_cast<const uint8_t *>(serialized_msg.buffer) + serialized_msg.buffer_length);
                                                          if (is_connected_)
                                                          {
-                                                             std::string base64_string = to_base64(payload);
+                                                             std::vector<uint8_t> message_with_topic(128, 0);
+                                                             std::copy(topic_name.begin(), topic_name.end(), message_with_topic.begin());
+                                                             message_with_topic.insert(message_with_topic.end(), payload.begin(), payload.end());
 
-                                                             std::string message_with_topic = topic_name + ":" + base64_string;
-
-                                                             RCLCPP_INFO(this->get_logger(), "Received message: %s", message_with_topic.c_str());
-
-                                                             auto send_ec = client_connection_->send(message_with_topic, websocketpp::frame::opcode::text);
+                                                             auto send_ec = client_connection_->send(message_with_topic.data(), message_with_topic.size(), websocketpp::frame::opcode::binary);
 
                                                              if (send_ec)
                                                              {
@@ -131,41 +123,11 @@ private:
                                                              }
                                                              else
                                                              {
-                                                                 RCLCPP_INFO(this->get_logger(), "Hex string sent successfully: %s", base64_string.c_str());
+                                                                 RCLCPP_INFO(this->get_logger(), "Binary data sent successfully.");
                                                              }
                                                          }
                                                      });
         subscriptions_[topic_name] = sub;
-    }
-
-    std::string to_base64(const std::vector<uint8_t> &data)
-    {
-        std::string result;
-        int val = 0;
-        int valb = -6;
-
-        for (uint8_t c : data)
-        {
-            val = (val << 8) + c;
-            valb += 8;
-            while (valb >= 0)
-            {
-                result.push_back(base64_chars[(val >> valb) & 0x3F]);
-                valb -= 6;
-            }
-        }
-
-        if (valb > -6)
-        {
-            result.push_back(base64_chars[((val << 8) >> valb) & 0x3F]);
-        }
-
-        while (result.size() % 4)
-        {
-            result.push_back('=');
-        }
-
-        return result;
     }
 
     void on_open(websocketpp::connection_hdl hdl)
@@ -176,7 +138,40 @@ private:
 
     void on_message(websocketpp::connection_hdl hdl, websocketpp::client<websocketpp::config::asio_client>::message_ptr msg)
     {
-        // RCLCPP_INFO(this->get_logger(), "Received message: %s", msg->get_payload().c_str());
+        std::vector<uint8_t> received_payload(msg->get_payload().begin(), msg->get_payload().end());
+
+        if (received_payload.size() < 128)
+        {
+            RCLCPP_ERROR(this->get_logger(), "Received payload is too small to contain topic information.");
+            return;
+        }
+
+        std::string topic_name(received_payload.begin(), received_payload.begin() + 128);
+        topic_name.erase(std::find(topic_name.begin(), topic_name.end(), '\0'), topic_name.end());
+
+        if (subscriptions_.find(topic_name) != subscriptions_.end())
+        {
+            RCLCPP_INFO(this->get_logger(), "DATA OK");
+            auto it = subscriptions_.find(topic_name);
+            if (it != subscriptions_.end())
+            {
+                auto message = rclcpp::SerializedMessage();
+
+                std::vector<uint8_t> payload(received_payload.begin() + 128, received_payload.end());
+                RCLCPP_INFO(this->get_logger(), "Received message: ");
+                for (int i = 0; i < payload.size(); i++)
+                {
+                    printf("%0X, ", payload[i]);
+                }
+                printf("\n");
+                message.reserve(payload.size());
+                std::memcpy(message.get_rcl_serialized_message().buffer, payload.data(), payload.size());
+                message.get_rcl_serialized_message().buffer_length = payload.size();
+
+                it->second->publish(message);
+                RCLCPP_INFO(this->get_logger(), "PUBLISH");
+            }
+        }
     }
 
     void on_close(websocketpp::connection_hdl hdl)
