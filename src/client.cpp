@@ -138,40 +138,7 @@ private:
 
     void on_message(websocketpp::connection_hdl hdl, websocketpp::client<websocketpp::config::asio_client>::message_ptr msg)
     {
-        std::vector<uint8_t> received_payload(msg->get_payload().begin(), msg->get_payload().end());
-
-        if (received_payload.size() < 128)
-        {
-            RCLCPP_ERROR(this->get_logger(), "Received payload is too small to contain topic information.");
-            return;
-        }
-
-        std::string topic_name(received_payload.begin(), received_payload.begin() + 128);
-        topic_name.erase(std::find(topic_name.begin(), topic_name.end(), '\0'), topic_name.end());
-
-        if (subscriptions_.find(topic_name) != subscriptions_.end())
-        {
-            RCLCPP_INFO(this->get_logger(), "DATA OK");
-            auto it = subscriptions_.find(topic_name);
-            if (it != subscriptions_.end())
-            {
-                auto message = rclcpp::SerializedMessage();
-
-                std::vector<uint8_t> payload(received_payload.begin() + 128, received_payload.end());
-                RCLCPP_INFO(this->get_logger(), "Received message: ");
-                for (int i = 0; i < payload.size(); i++)
-                {
-                    printf("%0X, ", payload[i]);
-                }
-                printf("\n");
-                message.reserve(payload.size());
-                std::memcpy(message.get_rcl_serialized_message().buffer, payload.data(), payload.size());
-                message.get_rcl_serialized_message().buffer_length = payload.size();
-
-                it->second->publish(message);
-                RCLCPP_INFO(this->get_logger(), "PUBLISH");
-            }
-        }
+        // RCLCPP_INFO(this->get_logger(), "Received message: %s", msg->get_payload().c_str());
     }
 
     void on_close(websocketpp::connection_hdl hdl)
