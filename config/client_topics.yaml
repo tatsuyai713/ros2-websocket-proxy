@@ -1,6 +1,7 @@
 # config/topics.yaml
-topics:
+publish_topics:
   - name: "/test"
     type: "std_msgs/msg/Float64"
+subscribe_topics:
   - name: "/another_topic"
     type: "sensor_msgs/msg/Image"

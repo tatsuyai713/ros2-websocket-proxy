@@ -17,25 +17,25 @@ include_directories(
 
 ament_export_dependencies(rclcpp yaml-cpp ament_index_cpp)
 
-add_executable(generic_subscriber_client src/client.cpp)
-ament_target_dependencies(generic_subscriber_client rclcpp rclcpp_components yaml-cpp websocketpp ament_index_cpp)
+add_executable(generic_client src/client.cpp)
+ament_target_dependencies(generic_client rclcpp rclcpp_components yaml-cpp websocketpp ament_index_cpp)
 
-add_executable(generic_publisher_server src/server.cpp)
-ament_target_dependencies(generic_publisher_server rclcpp rclcpp_components yaml-cpp websocketpp ament_index_cpp)
+add_executable(generic_server src/server.cpp)
+ament_target_dependencies(generic_server rclcpp rclcpp_components yaml-cpp websocketpp ament_index_cpp)
 
-target_link_libraries(generic_subscriber_client
+target_link_libraries(generic_client
   ${YAML_CPP_LIBRARIES}
   ${rclcpp_LIBRARIES}
 )
 
-target_link_libraries(generic_publisher_server
+target_link_libraries(generic_server
   ${YAML_CPP_LIBRARIES}
   ${rclcpp_LIBRARIES}
 )
 
 install(TARGETS
-    generic_subscriber_client
-    generic_publisher_server
+    generic_client
+    generic_server
     DESTINATION lib/${PROJECT_NAME}
 )
 

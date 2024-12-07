@@ -1,5 +1,6 @@
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp/generic_subscription.hpp>
+#include <rclcpp/generic_publisher.hpp>
 #include <websocketpp/client.hpp>
 #include <websocketpp/config/asio_no_tls_client.hpp>
 #include <yaml-cpp/yaml.h>
@@ -12,15 +13,15 @@
 #include <iomanip>
 #include <ament_index_cpp/get_package_share_directory.hpp>
 
-class GenericSubscriberClient : public rclcpp::Node
+class GenericClient : public rclcpp::Node
 {
 public:
-    GenericSubscriberClient()
-        : Node("generic_subscriber_client"),
+    GenericClient()
+        : Node("generic_client"),
           reconnect_interval_(1),
           is_connected_(false)
     {
-        this->declare_parameter("yaml_file", "topics.yaml");
+        this->declare_parameter("yaml_file", "client_topics.yaml");
         this->get_parameter("yaml_file", yaml_file_);
         this->declare_parameter("ws_url", "ws://localhost:9090");
         this->get_parameter("ws_url", ws_url_);
@@ -39,25 +40,35 @@ public:
             return;
         }
 
-        auto topics = config["topics"];
-        for (const auto &topic : topics)
+        auto subscribe_topics = config["subscribe_topics"];
+        for (const auto &topic : subscribe_topics)
         {
             std::string topic_name = topic["name"].as<std::string>();
             std::string type_name = topic["type"].as<std::string>();
             create_subscriber(topic_name, type_name);
         }
 
+        auto publish_topics = config["publish_topics"];
+        for (const auto &topic : publish_topics)
+        {
+            std::string topic_name = topic["name"].as<std::string>();
+            std::string type_name = topic["type"].as<std::string>();
+
+            auto publisher = this->create_generic_publisher(topic_name, type_name, rclcpp::QoS(10));
+            publishers_[topic_name] = publisher;
+        }
+
         ws_client_.init_asio();
-        ws_client_.set_open_handler(std::bind(&GenericSubscriberClient::on_open, this, std::placeholders::_1));
-        ws_client_.set_message_handler(std::bind(&GenericSubscriberClient::on_message, this, std::placeholders::_1, std::placeholders::_2));
-        ws_client_.set_close_handler(std::bind(&GenericSubscriberClient::on_close, this, std::placeholders::_1));
-        ws_client_.set_fail_handler(std::bind(&GenericSubscriberClient::on_fail, this, std::placeholders::_1));
+        ws_client_.set_open_handler(std::bind(&GenericClient::on_open, this, std::placeholders::_1));
+        ws_client_.set_message_handler(std::bind(&GenericClient::on_message, this, std::placeholders::_1, std::placeholders::_2));
+        ws_client_.set_close_handler(std::bind(&GenericClient::on_close, this, std::placeholders::_1));
+        ws_client_.set_fail_handler(std::bind(&GenericClient::on_fail, this, std::placeholders::_1));
 
         client_thread_ = std::thread([this]()
                                      { run(); });
     }
 
-    ~GenericSubscriberClient()
+    ~GenericClient()
     {
         if (client_thread_.joinable())
         {
@@ -138,7 +149,37 @@ private:
 
     void on_message(websocketpp::connection_hdl hdl, websocketpp::client<websocketpp::config::asio_client>::message_ptr msg)
     {
-        // RCLCPP_INFO(this->get_logger(), "Received message: %s", msg->get_payload().c_str());
+        std::vector<uint8_t> received_payload(msg->get_payload().begin(), msg->get_payload().end());
+
+        if (received_payload.size() < 128)
+        {
+            RCLCPP_ERROR(this->get_logger(), "Received payload is too small to contain topic information.");
+            return;
+        }
+
+        std::string topic_name(received_payload.begin(), received_payload.begin() + 128);
+        topic_name.erase(std::find(topic_name.begin(), topic_name.end(), '\0'), topic_name.end());
+
+        RCLCPP_INFO(this->get_logger(), "DATA OK");
+        auto it = publishers_.find(topic_name);
+        if (it != publishers_.end())
+        {
+            auto message = rclcpp::SerializedMessage();
+
+            std::vector<uint8_t> payload(received_payload.begin() + 128, received_payload.end());
+            RCLCPP_INFO(this->get_logger(), "Received message: ");
+            for (int i = 0; i < payload.size(); i++)
+            {
+                printf("%0X, ", payload[i]);
+            }
+            printf("\n");
+            message.reserve(payload.size());
+            std::memcpy(message.get_rcl_serialized_message().buffer, payload.data(), payload.size());
+            message.get_rcl_serialized_message().buffer_length = payload.size();
+
+            it->second->publish(message);
+            RCLCPP_INFO(this->get_logger(), "PUBLISH");
+        }
     }
 
     void on_close(websocketpp::connection_hdl hdl)
@@ -147,10 +188,10 @@ private:
         is_connected_ = false;
         ws_client_.reset();
         ws_client_.init_asio();
-        ws_client_.set_open_handler(std::bind(&GenericSubscriberClient::on_open, this, std::placeholders::_1));
-        ws_client_.set_message_handler(std::bind(&GenericSubscriberClient::on_message, this, std::placeholders::_1, std::placeholders::_2));
-        ws_client_.set_close_handler(std::bind(&GenericSubscriberClient::on_close, this, std::placeholders::_1));
-        ws_client_.set_fail_handler(std::bind(&GenericSubscriberClient::on_fail, this, std::placeholders::_1));
+        ws_client_.set_open_handler(std::bind(&GenericClient::on_open, this, std::placeholders::_1));
+        ws_client_.set_message_handler(std::bind(&GenericClient::on_message, this, std::placeholders::_1, std::placeholders::_2));
+        ws_client_.set_close_handler(std::bind(&GenericClient::on_close, this, std::placeholders::_1));
+        ws_client_.set_fail_handler(std::bind(&GenericClient::on_fail, this, std::placeholders::_1));
     }
 
     void on_fail(websocketpp::connection_hdl hdl)
@@ -159,10 +200,10 @@ private:
         is_connected_ = false;
         ws_client_.reset();
         ws_client_.init_asio();
-        ws_client_.set_open_handler(std::bind(&GenericSubscriberClient::on_open, this, std::placeholders::_1));
-        ws_client_.set_message_handler(std::bind(&GenericSubscriberClient::on_message, this, std::placeholders::_1, std::placeholders::_2));
-        ws_client_.set_close_handler(std::bind(&GenericSubscriberClient::on_close, this, std::placeholders::_1));
-        ws_client_.set_fail_handler(std::bind(&GenericSubscriberClient::on_fail, this, std::placeholders::_1));
+        ws_client_.set_open_handler(std::bind(&GenericClient::on_open, this, std::placeholders::_1));
+        ws_client_.set_message_handler(std::bind(&GenericClient::on_message, this, std::placeholders::_1, std::placeholders::_2));
+        ws_client_.set_close_handler(std::bind(&GenericClient::on_close, this, std::placeholders::_1));
+        ws_client_.set_fail_handler(std::bind(&GenericClient::on_fail, this, std::placeholders::_1));
     }
 
     std::string ws_url_;
@@ -170,6 +211,7 @@ private:
     websocketpp::client<websocketpp::config::asio_client> ws_client_;
     websocketpp::client<websocketpp::config::asio_client>::connection_ptr client_connection_;
     std::unordered_map<std::string, rclcpp::SubscriptionBase::SharedPtr> subscriptions_;
+    std::unordered_map<std::string, rclcpp::GenericPublisher::SharedPtr> publishers_;
     std::thread client_thread_;
     int reconnect_interval_;
     bool is_connected_;
@@ -179,7 +221,7 @@ int main(int argc, char *argv[])
 {
     rclcpp::init(argc, argv);
 
-    auto node = std::make_shared<GenericSubscriberClient>();
+    auto node = std::make_shared<GenericClient>();
 
     rclcpp::spin(node);
     rclcpp::shutdown();
