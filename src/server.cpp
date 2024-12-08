@@ -83,7 +83,6 @@ private:
         auto sub = this->create_generic_subscription(topic_name, type_name, rclcpp::QoS(10),
                                                      [this, topic_name](std::shared_ptr<rclcpp::SerializedMessage> msg)
                                                      {
-                                                         RCLCPP_INFO(this->get_logger(), "Received message on topic: %s", topic_name.c_str());
                                                          const auto &serialized_msg = msg->get_rcl_serialized_message();
                                                          std::vector<uint8_t> payload(reinterpret_cast<const uint8_t *>(serialized_msg.buffer),
                                                                                       reinterpret_cast<const uint8_t *>(serialized_msg.buffer) + serialized_msg.buffer_length);
@@ -119,26 +118,17 @@ private:
         std::string topic_name(received_payload.begin(), received_payload.begin() + 128);
         topic_name.erase(std::find(topic_name.begin(), topic_name.end(), '\0'), topic_name.end());
 
-        RCLCPP_INFO(this->get_logger(), "DATA OK");
         auto it = publishers_.find(topic_name);
-        printf("Get %s\n",topic_name.c_str());
         if (it != publishers_.end())
         {
             auto message = rclcpp::SerializedMessage();
 
             std::vector<uint8_t> payload(received_payload.begin() + 128, received_payload.end());
-            RCLCPP_INFO(this->get_logger(), "Received message: ");
-            for (int i = 0; i < payload.size(); i++)
-            {
-                printf("%0X, ", payload[i]);
-            }
-            printf("\n");
             message.reserve(payload.size());
             std::memcpy(message.get_rcl_serialized_message().buffer, payload.data(), payload.size());
             message.get_rcl_serialized_message().buffer_length = payload.size();
 
             it->second->publish(message);
-            RCLCPP_INFO(this->get_logger(), "PUBLISH");
         }
     }
 
