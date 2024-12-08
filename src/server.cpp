@@ -58,6 +58,10 @@ public:
         server_.set_open_handler(std::bind(&GenericServer::on_open, this, std::placeholders::_1));
         server_.set_close_handler(std::bind(&GenericServer::on_close, this, std::placeholders::_1));
         server_.set_message_handler(std::bind(&GenericServer::on_message, this, std::placeholders::_1, std::placeholders::_2));
+        
+        server_.clear_access_channels(websocketpp::log::alevel::all);
+        server_.clear_error_channels(websocketpp::log::elevel::all);
+
         server_.listen(port_);
         server_.start_accept();
         server_thread_ = std::thread([this]()
@@ -152,10 +156,6 @@ private:
     std::unordered_map<std::string, std::shared_ptr<rclcpp::GenericPublisher>> publishers_;
     std::unordered_map<std::string, rclcpp::SubscriptionBase::SharedPtr> subscriptions_;
     std::unordered_set<websocketpp::connection_hdl, std::owner_less<websocketpp::connection_hdl>> connections_;
-
-    server_.clear_access_channels(websocketpp::log::alevel::all);
-    server_.clear_error_channels(websocketpp::log::elevel::all);
-
     std::thread server_thread_;
     websocketpp::connection_hdl hdl_;
     bool is_connected_;
