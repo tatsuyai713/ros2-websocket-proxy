@@ -117,6 +117,7 @@ private:
 
         RCLCPP_INFO(this->get_logger(), "DATA OK");
         auto it = publishers_.find(topic_name);
+        printf("Get %s\n",topic_name.c_str());
         if (it != publishers_.end())
         {
             auto message = rclcpp::SerializedMessage();
@@ -151,6 +152,10 @@ private:
     std::unordered_map<std::string, std::shared_ptr<rclcpp::GenericPublisher>> publishers_;
     std::unordered_map<std::string, rclcpp::SubscriptionBase::SharedPtr> subscriptions_;
     std::unordered_set<websocketpp::connection_hdl, std::owner_less<websocketpp::connection_hdl>> connections_;
+
+    server_.clear_access_channels(websocketpp::log::alevel::all);
+    server_.clear_error_channels(websocketpp::log::elevel::all);
+
     std::thread server_thread_;
     websocketpp::connection_hdl hdl_;
     bool is_connected_;
