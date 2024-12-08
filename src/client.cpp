@@ -64,6 +64,9 @@ public:
         ws_client_.set_close_handler(std::bind(&GenericClient::on_close, this, std::placeholders::_1));
         ws_client_.set_fail_handler(std::bind(&GenericClient::on_fail, this, std::placeholders::_1));
 
+        ws_client_.clear_access_channels(websocketpp::log::alevel::all);
+        ws_client_.clear_error_channels(websocketpp::log::elevel::all);
+
         client_thread_ = std::thread([this]()
                                      { run(); });
     }
@@ -132,10 +135,6 @@ private:
                                                              {
                                                                  RCLCPP_ERROR(this->get_logger(), "Send failed: %s", send_ec.message().c_str());
                                                              }
-                                                             else
-                                                             {
-                                                                 RCLCPP_INFO(this->get_logger(), "Binary data sent successfully.");
-                                                             }
                                                          }
                                                      });
         subscriptions_[topic_name] = sub;
@@ -160,25 +159,17 @@ private:
         std::string topic_name(received_payload.begin(), received_payload.begin() + 128);
         topic_name.erase(std::find(topic_name.begin(), topic_name.end(), '\0'), topic_name.end());
 
-        RCLCPP_INFO(this->get_logger(), "DATA OK");
         auto it = publishers_.find(topic_name);
         if (it != publishers_.end())
         {
             auto message = rclcpp::SerializedMessage();
 
             std::vector<uint8_t> payload(received_payload.begin() + 128, received_payload.end());
-            RCLCPP_INFO(this->get_logger(), "Received message: ");
-            for (int i = 0; i < payload.size(); i++)
-            {
-                printf("%0X, ", payload[i]);
-            }
-            printf("\n");
             message.reserve(payload.size());
             std::memcpy(message.get_rcl_serialized_message().buffer, payload.data(), payload.size());
             message.get_rcl_serialized_message().buffer_length = payload.size();
 
             it->second->publish(message);
-            RCLCPP_INFO(this->get_logger(), "PUBLISH");
         }
     }
 
