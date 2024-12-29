@@ -8,6 +8,12 @@ find_package(yaml-cpp REQUIRED)
 find_package(websocketpp REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 
+add_definitions(
+  -D_WEBSOCKETPP_CPP11_STL_          # C++11 STLを使用
+  -D_WEBSOCKETPP_CPP11_FUNCTIONAL_   # C++11のstd::functionalを使用
+  -D_WEBSOCKETPP_CPP11_TYPE_TRAITS_  # C++11のtype_traitsを使用
+  -DASIO_STANDALONE                  # BoostなしでASIOを使用
+)
 
 include_directories(
   include
