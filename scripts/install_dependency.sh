@@ -10,6 +10,7 @@ fi
 sudo apt update
 sudo apt install -y \
     libasio-dev \
+    libboost-dev \
     libwebsocketpp-dev \
     libyaml-cpp-dev
 

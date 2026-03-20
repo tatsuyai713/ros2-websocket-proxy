@@ -26,6 +26,7 @@ jobs:
           apt-get update && apt-get install -y --no-install-recommends \
             python3-colcon-common-extensions \
             libasio-dev \
+            libboost-dev \
             libwebsocketpp-dev \
             libyaml-cpp-dev \
             ros-${ROS_DISTRO}-ros2topic \

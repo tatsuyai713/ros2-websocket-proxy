@@ -14,10 +14,12 @@ find_package(rclcpp REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(websocketpp REQUIRED)
 find_package(ament_index_cpp REQUIRED)
+find_package(Boost REQUIRED)
 
 include_directories(
   include
   ${YAML_CPP_INCLUDE_DIRS}
+  ${Boost_INCLUDE_DIRS}
 )
 
 ament_export_dependencies(rclcpp yaml-cpp ament_index_cpp)
