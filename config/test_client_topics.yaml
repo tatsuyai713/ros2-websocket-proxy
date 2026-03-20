@@ -1,0 +1,8 @@
+# Test config for the client node (ROS_DOMAIN_ID=2).
+# Used by the CI integration test to verify cross-domain communication.
+subscribe_topics:
+  - name: "/domain2_to_domain1"
+    type: "std_msgs/msg/String"
+publish_topics:
+  - name: "/domain1_to_domain2"
+    type: "std_msgs/msg/String"

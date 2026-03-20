@@ -1,0 +1,52 @@
+name: Build and Integration Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ros_distro: [humble, jazzy]
+    container:
+      image: ros:${{ matrix.ros_distro }}
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      ROS_DISTRO: ${{ matrix.ros_distro }}
+
+    steps:
+      # ── Install build & test dependencies ──────────────────────────
+      - name: Install dependencies
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends \
+            python3-colcon-common-extensions \
+            libasio-dev \
+            libwebsocketpp-dev \
+            libyaml-cpp-dev \
+            ros-${ROS_DISTRO}-ros2topic \
+            ros-${ROS_DISTRO}-std-msgs
+
+      # ── Checkout ───────────────────────────────────────────────────
+      - uses: actions/checkout@v4
+        with:
+          path: src/ros2-websocket-proxy
+
+      # ── Build ──────────────────────────────────────────────────────
+      - name: Build
+        shell: bash
+        run: |
+          source /opt/ros/${ROS_DISTRO}/setup.bash
+          colcon build --packages-select ros2_websocket_proxy
+
+      # ── Integration test: cross-domain communication ───────────────
+      - name: Integration test (cross-domain)
+        shell: bash
+        run: |
+          source /opt/ros/${ROS_DISTRO}/setup.bash
+          source install/setup.bash
+          bash src/ros2-websocket-proxy/test/test_cross_domain.sh
