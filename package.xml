@@ -11,11 +11,13 @@
   <build_depend>rclcpp</build_depend>
   <build_depend>yaml-cpp</build_depend>
   <build_depend>websocketpp</build_depend>
+  <build_depend>ament_index_cpp</build_depend>
 
   <!-- Run dependencies -->
   <exec_depend>rclcpp</exec_depend>
   <exec_depend>yaml-cpp</exec_depend>
   <exec_depend>websocketpp</exec_depend>
+  <exec_depend>ament_index_cpp</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>
